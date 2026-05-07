@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Filmsupport · Rental Performance Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root {
+  --bg:        #0E0F14;
+  --surface:   #16181F;
+  --surface2:  #1E2029;
+  --surface3:  #252833;
+  --border:    #2A2D3A;
+  --border2:   #353848;
+  --text:      #F0F1F5;
+  --text2:     #9395A5;
+  --text3:     #5C5F72;
+  --accent:    #E8622A;
+  --accent-d:  #C44F1E;
+  --accent-glow: rgba(232,98,42,0.18);
+  --green:     #3DD68C;
+  --yellow:    #F5C842;
+  --blue:      #5B8DEF;
+  --radius:    14px;
+  --radius-sm: 8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* ── TOPBAR ── */
+.topbar{
+position:sticky;top:0;z-index:100;
+background:rgba(14,15,20,0.8);
+backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+border-bottom:1px solid var(–border);
+padding:0 28px;height:60px;
+display:flex;align-items:center;justify-content:space-between;gap:16px;
+}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-icon{
+width:34px;height:34px;border-radius:10px;
+background:linear-gradient(135deg,var(–accent),var(–accent-d));
+display:flex;align-items:center;justify-content:center;
+box-shadow:0 4px 14px var(–accent-glow);
+flex-shrink:0;
+}
+.brand-icon svg{width:16px;height:16px}
+.brand-text .name{font-size:13px;font-weight:700;letter-spacing:0.01em;color:var(–text)}
+.brand-text .tag{font-family:‘JetBrains Mono’,monospace;font-size:9px;letter-spacing:0.12em;color:var(–text3);margin-top:1px}
+.topbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* ── BUTTONS ── */
+.btn{
+display:inline-flex;align-items:center;gap:6px;
+padding:8px 16px;border-radius:var(–radius-sm);
+font-size:13px;font-weight:600;border:none;
+transition:all .15s;white-space:nowrap;
+}
+.btn-primary{
+background:linear-gradient(135deg,var(–accent),var(–accent-d));
+color:#fff;
+box-shadow:0 4px 14px var(–accent-glow);
+}
+.btn-primary:hover:not(:disabled){filter:brightness(1.1);transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn-ghost{background:var(–surface3);color:var(–text2);border:1px solid var(–border)}
+.btn-ghost:hover{background:var(–border);color:var(–text)}
+.btn-danger{background:rgba(255,70,70,.12);color:#ff6b6b;border:1px solid rgba(255,70,70,.2)}
+.btn-danger:hover{background:rgba(255,70,70,.2)}
+.icon-btn{
+background:transparent;border:none;
+color:var(–text3);padding:6px;border-radius:6px;
+display:inline-flex;align-items:center;justify-content:center;
+transition:all .12s;
+}
+.icon-btn:hover{color:var(–text);background:var(–surface3)}
+
+/* ── TOAST ── */
+.toast{
+display:inline-flex;align-items:center;gap:6px;
+font-size:12px;color:var(–green);
+font-family:‘JetBrains Mono’,monospace;
+opacity:0;transition:opacity .2s;
+}
+.toast.show{opacity:1}
+
+/* ── LAYOUT ── */
+.main{max-width:1400px;margin:0 auto;padding:28px}
+.hidden{display:none!important}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:20px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+
+/* ── CARDS ── */
+.card{
+background:var(–surface);
+border:1px solid var(–border);
+border-radius:var(–radius);
+padding:22px;
+}
+.card-header{
+display:flex;align-items:center;gap:10px;
+margin-bottom:18px;
+}
+.card-tag{
+font-family:‘JetBrains Mono’,monospace;
+font-size:10px;font-weight:500;
+letter-spacing:0.1em;text-transform:uppercase;
+color:var(–accent);
+}
+.card-title{font-size:16px;font-weight:700;color:var(–text)}
+.card-sub{font-size:12px;color:var(–text3);margin-left:auto}
+
+/* ── KPI CARDS ── */
+.kpi-card{
+background:var(–surface);
+border:1px solid var(–border);
+border-radius:var(–radius);
+padding:20px 22px;
+position:relative;overflow:hidden;
+transition:border-color .15s;
+}
+.kpi-card:hover{border-color:var(–border2)}
+.kpi-card::before{
+content:’’;position:absolute;top:0;left:0;right:0;height:2px;
+background:linear-gradient(90deg,var(–accent),transparent);
+opacity:0;transition:opacity .2s;
+}
+.kpi-card:hover::before{opacity:1}
+.kpi-label{font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(–text3);margin-bottom:12px}
+.kpi-value{font-size:28px;font-weight:800;color:var(–text);letter-spacing:-0.02em;line-height:1;font-variant-numeric:tabular-nums}
+.kpi-hint{font-size:11px;color:var(–text3);margin-top:8px}
+.kpi-accent .kpi-value{color:var(–accent)}
+
+/* ── MARGIN CARD ── */
+.margin-card{
+background:linear-gradient(135deg,#1A1420 0%,#1A1B22 100%);
+border:1px solid rgba(232,98,42,0.25);
+border-radius:var(–radius);padding:20px 22px;
+position:relative;overflow:hidden;
+}
+.margin-card::after{
+content:’’;position:absolute;
+top:-40px;right:-40px;
+width:130px;height:130px;border-radius:50%;
+background:radial-gradient(circle,rgba(232,98,42,0.22),transparent 70%);
+pointer-events:none;
+}
+.margin-label{font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(232,98,42,0.7);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.margin-value{font-size:28px;font-weight:800;color:var(–accent);letter-spacing:-0.02em;line-height:1;font-variant-numeric:tabular-nums;position:relative;z-index:1}
+.slider-wrap{margin-top:16px;position:relative;z-index:1}
+.slider{
+-webkit-appearance:none;appearance:none;
+width:100%;height:3px;border-radius:2px;
+background:var(–border);outline:none;cursor:pointer;
+}
+.slider::-webkit-slider-thumb{
+-webkit-appearance:none;appearance:none;
+width:16px;height:16px;border-radius:50%;
+background:var(–accent);cursor:pointer;
+box-shadow:0 0 0 3px rgba(232,98,42,0.3);
+transition:transform .1s;
+}
+.slider::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(–accent);cursor:pointer;border:none}
+.slider-labels{display:flex;justify-content:space-between;font-size:10px;color:var(–text3);margin-top:7px;font-family:‘JetBrains Mono’,monospace}
+
+/* ── SECTION LABEL ── */
+.section-label{
+font-size:11px;font-weight:700;letter-spacing:0.1em;
+text-transform:uppercase;color:var(–text3);
+margin-bottom:14px;display:flex;align-items:center;gap:8px;
+}
+.section-label::after{content:’’;flex:1;height:1px;background:var(–border)}
+
+/* ── FIELDS ── */
+.field-label{display:block;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(–text3);margin-bottom:6px}
+.field-input{
+width:100%;padding:9px 12px;
+background:var(–surface2);border:1px solid var(–border);
+border-radius:var(–radius-sm);
+font-family:inherit;font-size:13px;color:var(–text);
+outline:none;transition:border-color .15s;
+}
+.field-input:focus{border-color:var(–accent)}
+.field-readonly{
+padding:9px 12px;background:var(–surface2);
+border:1px solid var(–border);border-radius:var(–radius-sm);
+font-family:‘JetBrains Mono’,monospace;font-size:11px;color:var(–text3);
+overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* ── SEARCH ── */
+.search-wrap{position:relative;flex:1 1 260px;max-width:380px}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(–text3);pointer-events:none}
+.search-input{
+width:100%;padding:9px 12px 9px 34px;
+background:var(–surface2);border:1px solid var(–border);
+border-radius:var(–radius-sm);
+font-family:inherit;font-size:13px;color:var(–text);
+outline:none;transition:border-color .15s;
+}
+.search-input:focus{border-color:var(–accent)}
+.search-input::placeholder{color:var(–text3)}
+
+/* ── TABLE ── */
+.table-wrap{overflow-x:auto}
+.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table th{
+padding:11px 14px;
+background:var(–surface2);
+color:var(–text3);
+font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+cursor:pointer;user-select:none;white-space:nowrap;
+border-bottom:1px solid var(–border);
+transition:color .12s;
+}
+.data-table th:hover{color:var(–text)}
+.data-table th.right{text-align:right}
+.data-table td{
+padding:11px 14px;
+border-bottom:1px solid var(–border);
+transition:background .1s;
+vertical-align:middle;
+}
+.data-table tr:hover td{background:var(–surface2)}
+.data-table tr.edited td:first-child{border-left:2px solid var(–accent)}
+.data-table tfoot td{background:var(–surface2);border-top:1px solid var(–border2)}
+.num{font-variant-numeric:tabular-nums;font-family:‘JetBrains Mono’,monospace;font-size:12px}
+
+/* ── EDITABLE CELLS ── */
+.editable-cell{
+cursor:pointer;padding:3px 7px;margin:-3px -7px;
+border-radius:5px;transition:background .12s;
+display:inline-block;min-width:36px;
+}
+.editable-cell:hover{background:var(–surface3);outline:1px solid var(–border2)}
+.cell-input{
+padding:5px 8px;
+border:1.5px solid var(–accent);border-radius:5px;
+font-family:inherit;font-size:13px;outline:none;
+width:100%;background:var(–surface);color:var(–text);
+}
+.cell-input.right{text-align:right;font-family:‘JetBrains Mono’,monospace}
+
+/* ── UTIL BAR ── */
+.util-bar-wrap{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end}
+.util-bar-bg{width:48px;height:4px;background:var(–border);border-radius:2px;overflow:hidden}
+.util-bar-fill{height:100%;border-radius:2px;transition:width .3s}
+
+/* ── BADGE ── */
+.badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:0.04em}
+.badge-edit{background:rgba(232,98,42,0.15);color:var(–accent)}
+.badge-new{background:rgba(61,214,140,0.15);color:var(–green)}
+
+/* ── INVOICE BLOCK ── */
+.invoice-block{
+background:linear-gradient(135deg,#1A1420,#16181F);
+border:1px solid rgba(232,98,42,0.2);
+border-radius:var(–radius);padding:28px 32px;
+position:relative;overflow:hidden;
+}
+.invoice-block::before{
+content:’’;position:absolute;
+top:-60px;right:-60px;width:200px;height:200px;
+border-radius:50%;
+background:radial-gradient(circle,rgba(232,98,42,0.15),transparent 70%);
+pointer-events:none;
+}
+
+/* ── SAVED CARDS ── */
+.saved-card{
+background:var(–surface);border:1px solid var(–border);
+border-radius:var(–radius-sm);padding:14px 16px;
+cursor:pointer;transition:all .15s;
+display:flex;justify-content:space-between;align-items:center;gap:12px;
+}
+.saved-card:hover{border-color:var(–border2);transform:translateY(-1px)}
+.saved-card.active{border-color:rgba(232,98,42,0.4);background:rgba(232,98,42,0.06)}
+
+/* ── MODAL ── */
+.modal-backdrop{
+position:fixed;inset:0;
+background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);
+z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.modal{
+background:var(–surface);border:1px solid var(–border2);
+border-radius:18px;padding:28px;
+max-width:580px;width:100%;max-height:80vh;overflow:auto;
+box-shadow:0 24px 80px rgba(0,0,0,0.5);
+}
+
+/* ── UPLOAD ── */
+.upload-zone{
+border:1.5px dashed var(–border2);
+border-radius:var(–radius);
+padding:52px 32px;text-align:center;cursor:pointer;
+transition:all .2s;background:var(–surface);
+display:block;
+}
+.upload-zone:hover,.upload-zone.drag{
+border-color:var(–accent);
+background:rgba(232,98,42,0.05);
+transform:translateY(-2px);
+}
+.upload-icon-wrap{
+width:64px;height:64px;border-radius:16px;
+background:linear-gradient(135deg,var(–accent),var(–accent-d));
+display:inline-flex;align-items:center;justify-content:center;
+margin-bottom:18px;
+box-shadow:0 8px 24px var(–accent-glow);
+}
+
+/* ── HERO ── */
+.hero-title{
+font-size:52px;font-weight:800;
+line-height:1.05;letter-spacing:-0.03em;
+color:var(–text);
+}
+.hero-title span{
+background:linear-gradient(135deg,var(–accent),#FF8A57);
+-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+font-style:italic;
+}
+
+/* ── ERROR ── */
+.error-box{
+padding:12px 16px;background:rgba(255,70,70,.08);
+border:1px solid rgba(255,70,70,.2);border-radius:var(–radius-sm);
+display:flex;align-items:center;gap:10px;color:#ff6b6b;font-size:13px;
+}
+
+/* ── CHECKBOX ── */
+.check-label{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(–text2);cursor:pointer;user-select:none}
+.check-label input{accent-color:var(–accent);width:15px;height:15px;cursor:pointer}
+
+/* ── CHIP ── */
+.chip{
+display:inline-flex;align-items:center;gap:5px;
+padding:4px 10px;background:var(–surface3);
+border:1px solid var(–border);border-radius:20px;
+font-size:11px;color:var(–text3);
+}
+</style>
+
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     EMPTY STATE
+═══════════════════════════════════════ -->
+
+<div id="view-empty">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      </div>
+      <div class="brand-text">
+        <div class="name">FILMSUPPORT</div>
+        <div class="tag">Rental Performance Report</div>
+      </div>
+    </div>
+    <span class="mono" style="font-size:11px;color:var(--text3)">v2.0</span>
+  </div>
+
+  <div style="min-height:calc(100vh - 60px);display:flex;align-items:center;justify-content:center;padding:40px">
+    <div style="max-width:680px;width:100%">
+      <div class="mono" style="font-size:10px;letter-spacing:0.2em;color:var(--text3);margin-bottom:18px">— VITAJ V SYSTÉME</div>
+      <h1 class="hero-title" style="margin-bottom:20px">
+        Rental analytics,<br><span>redefined.</span>
+      </h1>
+      <p style="font-size:16px;color:var(--text2);line-height:1.6;margin-bottom:40px;max-width:500px">
+        Nahraj mesačný CSV export, uprav dáta inline, nastav maržu a vyexportuj profesionálny PDF report. Všetko sa automaticky ukladá.
+      </p>
+
+```
+  <div class="upload-zone" id="upload-zone" style="position:relative">
+    <input type="file" accept=".csv" id="file-input"
+      style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2">
+    <div class="upload-icon-wrap" style="pointer-events:none">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:6px;pointer-events:none">Nahraj CSV report</div>
+    <div class="mono" style="font-size:11px;color:var(--text3);margin-bottom:22px;pointer-events:none">DRAG & DROP ALEBO KLIKNI PRE VÝBER</div>
+    <span class="btn btn-primary" style="pointer-events:none">Vybrať súbor</span>
+  </div>
+
+  <div id="saved-section" class="hidden" style="margin-top:32px">
+    <div class="section-label">Uložené reporty (<span id="saved-count">0</span>)</div>
+    <div id="saved-cards" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+
+  <div id="error-empty" class="error-box hidden" style="margin-top:20px">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span id="error-msg-empty"></span>
+  </div>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     DASHBOARD
+═══════════════════════════════════════ -->
+
+<div id="view-dash" class="hidden">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      </div>
+      <div class="brand-text">
+        <div class="name">FILMSUPPORT</div>
+        <div class="tag">Rental Performance Report</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="save-toast" class="toast">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        uložené
+      </span>
+      <button class="btn btn-ghost hidden" id="btn-reports">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Reporty <span class="chip" id="reports-count-chip" style="padding:1px 7px;font-size:10px">0</span>
+      </button>
+      <button class="btn btn-ghost hidden" id="btn-revert">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        Vrátiť (<span id="edited-count">0</span>)
+      </button>
+      <button class="btn btn-ghost" id="btn-new">Nový report</button>
+      <button class="btn btn-primary" id="btn-pdf">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span id="btn-pdf-text">Export PDF</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="main">
+
+```
+<!-- META -->
+<div class="card" style="margin-bottom:20px">
+  <div class="section-label">Metadata reportu</div>
+  <div class="grid3">
+    <div>
+      <label class="field-label">Obdobie</label>
+      <input class="field-input" id="meta-month" placeholder="napr. Apríl 2026">
+    </div>
+    <div>
+      <label class="field-label">Klient</label>
+      <input class="field-input" id="meta-client" placeholder="Názov klienta">
+    </div>
+    <div>
+      <label class="field-label">Súbor</label>
+      <div class="field-readonly" id="meta-file">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- KPI ROW -->
+<div class="grid4" style="margin-bottom:20px">
+  <div class="kpi-card">
+    <div class="kpi-label">Celkové tržby</div>
+    <div class="kpi-value" id="kpi-rev">—</div>
+    <div class="kpi-hint" id="kpi-rev-hint"></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Prenájmov celkom</div>
+    <div class="kpi-value" id="kpi-rents">—</div>
+    <div class="kpi-hint" id="kpi-rents-hint"></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Aktívne produkty</div>
+    <div class="kpi-value" id="kpi-active">—</div>
+    <div class="kpi-hint" id="kpi-active-hint"></div>
+  </div>
+  <div class="margin-card">
+    <div class="margin-label">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+      Na fakturáciu · <span id="margin-pct-label">50</span>%
+    </div>
+    <div class="kpi-value" id="kpi-margin" style="color:var(--accent);font-size:28px">—</div>
+    <div class="slider-wrap">
+      <input type="range" class="slider" min="0" max="100" step="1" value="50" id="margin-slider">
+      <div class="slider-labels">
+        <span>0%</span><span>z <span id="margin-from">—</span></span><span>100%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHARTS -->
+<div class="grid2" style="margin-bottom:20px">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-tag">§ 01</span>
+      <span class="card-title">Top tržby</span>
+      <span class="card-sub">lídri mesiaca</span>
+    </div>
+    <div style="position:relative;height:400px"><canvas id="chart-rev"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-tag">§ 02</span>
+      <span class="card-title">Najprenajímanejšie</span>
+      <span class="card-sub">počet × tržby</span>
+    </div>
+    <div style="position:relative;height:400px"><canvas id="chart-cnt"></canvas></div>
+  </div>
+</div>
+
+<!-- TABLE -->
+<div class="card" style="padding:0;margin-bottom:20px">
+  <div style="padding:20px 22px;border-bottom:1px solid var(--border)">
+    <div class="card-header" style="margin-bottom:14px">
+      <span class="card-tag">§ 03</span>
+      <span class="card-title">Editovateľný register</span>
+      <span class="card-sub">klikni na bunku pre úpravu</span>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <div class="search-wrap">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="search-input" id="tbl-search" placeholder="Hľadať produkt…">
+      </div>
+      <label class="check-label">
+        <input type="checkbox" id="tbl-active-only" checked> Iba aktívne
+      </label>
+      <span class="chip mono" id="tbl-count">— / —</span>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost" id="btn-add">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Pridať riadok
+      </button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr id="tbl-head"></tr></thead>
+      <tbody id="tbl-body"></tbody>
+      <tfoot><tr id="tbl-foot"></tr></tfoot>
+    </table>
+    <div id="tbl-overflow" class="hidden mono" style="padding:14px;font-size:11px;color:var(--text3);text-align:center">
+      Zobrazených prvých 300 · použi vyhľadávanie
+    </div>
+  </div>
+</div>
+
+<!-- INVOICE PREVIEW -->
+<div class="invoice-block" style="margin-bottom:20px">
+  <div class="section-label" style="color:rgba(232,98,42,0.5)">Náhľad fakturácie</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:28px;align-items:end;position:relative;z-index:1">
+    <div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;font-weight:600">Celkové tržby</div>
+      <div id="inv-total" class="num" style="font-size:26px;font-weight:800;color:var(--text);letter-spacing:-0.02em">—</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;font-weight:600">Podiel (%)</div>
+      <div id="inv-pct" class="num" style="font-size:26px;font-weight:800;color:var(--accent)">50%</div>
+    </div>
+    <div style="border-left:1px solid var(--border);padding-left:28px">
+      <div style="font-size:11px;color:rgba(232,98,42,0.6);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;font-weight:600">Na fakturáciu</div>
+      <div id="inv-amount" class="num" style="font-size:40px;font-weight:800;color:var(--text);letter-spacing:-0.03em">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- ERROR -->
+<div id="error-dash" class="error-box hidden" style="margin-bottom:20px">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <span id="error-msg-dash"></span>
+</div>
+
+<!-- FOOTER -->
+<div style="border-top:1px solid var(--border);padding-top:18px;margin-top:8px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px">
+  <span class="mono" style="font-size:10px;color:var(--text3)">FILMSUPPORT · RENTAL PERFORMANCE REPORT</span>
+  <span class="mono" style="font-size:10px;color:var(--text3)" id="footer-status">AUTO-SAVE AKTÍVNY</span>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- MODAL -->
+
+<div id="modal" class="modal-backdrop hidden">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px">
+      <div style="font-size:18px;font-weight:700">Uložené reporty</div>
+      <button class="btn btn-ghost" id="modal-close" style="padding:5px 10px">✕</button>
+    </div>
+    <div id="modal-cards" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+const SK = 'fsrr:';
+const ACTIVE_K = SK + 'active';
+const LIST_K   = SK + 'list';
+
+let S = {
+  data: null, origData: null,
+  file: '', month: '', client: '',
+  id: null, margin: 50,
+  search: '', sortCol: 'revenue', sortDir: 'desc',
+  onlyActive: true, editCell: null
+};
+
+let savedList = [];
+let charts = {};
+let saveTimer = null;
+
+// ═══════════════════════════════════════
+// FORMAT
+// ═══════════════════════════════════════
+const fmtEur  = n => new Intl.NumberFormat('sk-SK',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n||0);
+const fmtEur2 = n => new Intl.NumberFormat('sk-SK',{style:'currency',currency:'EUR',minimumFractionDigits:2}).format(n||0);
+const fmtN    = n => new Intl.NumberFormat('sk-SK').format(n||0);
+const pdfEur  = n => new Intl.NumberFormat('sk-SK',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0)+' EUR';
+const esc     = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ═══════════════════════════════════════
+// PARSE
+// ═══════════════════════════════════════
+function parseDur(str){
+  if(!str) return 0;
+  const m=String(str).match(/(\d+(?:[.,]\d+)?)\s*(de[ňn]|dni|dn[íi]|hod[ií]n|hodiny|hod)/i);
+  if(!m) return 0;
+  const n=parseFloat(m[1].replace(',','.'));
+  return m[2].toLowerCase().match(/^d/) ? n*24 : n;
+}
+function parseRev(row){
+  const d=row.revenue_as_decimal;
+  if(d!==undefined&&d!==null&&d!==''){const n=parseFloat(String(d).replace(',','.')); if(!isNaN(n)) return n;}
+  const n=parseFloat(String(row.revenue??'').replace(/[€\s]/g,'').replace(',','.'));
+  return isNaN(n)?0:n;
+}
+function processCSV(rows){
+  return rows.filter(r=>r.product_id&&r.name).map(r=>{
+    const cnt=parseInt(r.rented_count)||0;
+    const qty=parseInt(r.quantity)||0;
+    const rentH=parseDur(r.rent_duration);
+    const charH=parseDur(r.charge_duration);
+    const rev=parseRev(r);
+    const cap=qty*30*24;
+    const util=cap>0?Math.min(100,(charH/cap)*100):0;
+    return{
+      id:r.product_id, name:r.name, qty,
+      cnt, rentD:+(rentH/24).toFixed(1),
+      charD:+(charH/24).toFixed(1),
+      rev:+rev.toFixed(2), util:+util.toFixed(1),
+      edited:false
+    };
+  });
+}
+
+// ═══════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════
+function load(){
+  try{
+    savedList=JSON.parse(localStorage.getItem(LIST_K)||'[]');
+    const aid=localStorage.getItem(ACTIVE_K);
+    if(aid){
+      const r=JSON.parse(localStorage.getItem(SK+aid)||'null');
+      if(r){
+        S.data=r.data; S.origData=r.origData;
+        S.file=r.file||''; S.month=r.month||''; S.client=r.client||'';
+        S.margin=r.margin??50; S.id=aid;
+        return true;
+      }
+    }
+  }catch(e){console.error(e);}
+  return false;
+}
+
+function save(){
+  if(!S.data||!S.id) return;
+  try{
+    const p={id:S.id,data:S.data,origData:S.origData,file:S.file,month:S.month,client:S.client,margin:S.margin,at:new Date().toISOString()};
+    localStorage.setItem(SK+S.id,JSON.stringify(p));
+    localStorage.setItem(ACTIVE_K,S.id);
+    const list=JSON.parse(localStorage.getItem(LIST_K)||'[]');
+    const i=list.findIndex(x=>x.id===S.id);
+    const meta={id:S.id,file:S.file,month:S.month,client:S.client,at:p.at,count:S.data.length,edited:S.data.filter(x=>x.edited).length};
+    if(i>=0) list[i]=meta; else list.unshift(meta);
+    localStorage.setItem(LIST_K,JSON.stringify(list));
+    savedList=list;
+    flashToast();
+  }catch(e){console.error(e);}
+}
+
+function debounceSave(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(save,400);
+}
+
+function delReport(id,ev){
+  ev.stopPropagation();
+  if(!confirm('Vymazať tento report?')) return;
+  try{
+    localStorage.removeItem(SK+id);
+    savedList=savedList.filter(x=>x.id!==id);
+    localStorage.setItem(LIST_K,JSON.stringify(savedList));
+    if(id===S.id) startNew(); else renderSaved();
+  }catch(e){}
+}
+
+function loadReport(id){
+  try{
+    const r=JSON.parse(localStorage.getItem(SK+id)||'null');
+    if(!r) return;
+    S.data=r.data; S.origData=r.origData;
+    S.file=r.file||''; S.month=r.month||''; S.client=r.client||'';
+    S.margin=r.margin??50; S.id=id;
+    localStorage.setItem(ACTIVE_K,id);
+    hideModal();
+    showDash();
+  }catch(e){showErr(e.message);}
+}
+
+function startNew(){
+  S={...S,data:null,origData:null,file:'',month:'',client:'',id:null,margin:50,search:'',editCell:null};
+  localStorage.removeItem(ACTIVE_K);
+  showEmpty();
+}
+
+// ═══════════════════════════════════════
+// FILE
+// ═══════════════════════════════════════
+function handleFile(file){
+  if(!file) return;
+  hideErr();
+  S.file=file.name;
+  const m=file.name.match(/(\d{4})-(\d{2})/);
+  if(m){
+    const months=['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
+    const mi=parseInt(m[2])-1;
+    const prev=mi===0?11:mi-1;
+    const yr=mi===0?parseInt(m[1])-1:parseInt(m[1]);
+    S.month=months[prev]+' '+yr;
+  }
+  Papa.parse(file,{
+    header:true,skipEmptyLines:true,
+    complete(res){
+      try{
+        const rows=processCSV(res.data);
+        if(!rows.length){showErr('CSV neobsahuje použiteľné riadky.');return;}
+        S.id='r'+Date.now();
+        S.data=rows; S.origData=rows.map(x=>({...x}));
+        showDash();
+      }catch(e){showErr(e.message);}
+    },
+    error(e){showErr(e.message);}
+  });
+}
+
+// ═══════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════
+function stats(){
+  if(!S.data) return null;
+  const totalRev=S.data.reduce((a,r)=>a+(r.rev||0),0);
+  const totalCnt=S.data.reduce((a,r)=>a+(r.cnt||0),0);
+  const earning=S.data.filter(r=>r.rev>0).length;
+  const rented=S.data.filter(r=>r.cnt>0).length;
+  const idle=S.data.length-rented;
+  const avgPerRent=totalCnt>0?totalRev/totalCnt:0;
+  const margin=totalRev*(S.margin/100);
+  const edited=S.data.filter(r=>r.edited).length;
+  return{totalRev,totalCnt,total:S.data.length,earning,rented,idle,avgPerRent,margin,edited};
+}
+
+function filtered(){
+  if(!S.data) return [];
+  const t=S.search.toLowerCase().trim();
+  let rows=t?S.data.filter(r=>r.name.toLowerCase().includes(t)):S.data;
+  if(S.onlyActive) rows=rows.filter(r=>r.rev>0||r.cnt>0);
+  return [...rows].sort((a,b)=>{
+    const av=a[S.sortCol],bv=b[S.sortCol];
+    if(typeof av==='string') return S.sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+    return S.sortDir==='asc'?av-bv:bv-av;
+  });
+}
+
+// ═══════════════════════════════════════
+// EDIT
+// ═══════════════════════════════════════
+function doEdit(input){
+  if(!S.editCell) return;
+  const{id,col}=S.editCell;
+  const numCols=['qty','cnt','rentD','rev'];
+  let val=input.value;
+  if(numCols.includes(col)){val=parseFloat(String(val).replace(',','.')); if(isNaN(val)) val=0;}
+  const i=S.data.findIndex(r=>r.id===id);
+  if(i>=0){
+    S.data[i]={...S.data[i],[col]:val,edited:true};
+    if(col==='qty'){
+      const u=S.data[i];
+      const cap=u.qty*30*24;
+      u.util=cap>0?+Math.min(100,(u.charD*24/cap)*100).toFixed(1):0;
+    }
+  }
+  S.editCell=null;
+  debounceSave();
+  renderAll();
+}
+
+function cancelEdit(){S.editCell=null;renderTable();}
+function startEdit(id,col){S.editCell={id,col};renderTable();}
+window.startEdit=startEdit;
+
+function resetRow(id){
+  const o=S.origData?.find(r=>r.id===id);
+  if(!o) return;
+  const i=S.data.findIndex(r=>r.id===id);
+  if(i>=0) S.data[i]={...o};
+  debounceSave(); renderAll();
+}
+window.resetRow=resetRow;
+
+function delRow(id){
+  S.data=S.data.filter(r=>r.id!==id);
+  debounceSave(); renderAll();
+}
+window.delRow=delRow;
+
+function addRow(){
+  const nid='c'+Date.now();
+  S.data.unshift({id:nid,name:'Nový produkt',qty:1,cnt:0,rentD:0,charD:0,rev:0,util:0,edited:true,isNew:true});
+  S.editCell={id:nid,col:'name'};
+  debounceSave(); renderAll();
+  setTimeout(()=>{const inp=document.querySelector('.cell-input'); if(inp){inp.focus();inp.select();}},30);
+}
+
+function revertAll(){
+  if(!S.origData) return;
+  if(!confirm('Naozaj vrátiť všetky úpravy?')) return;
+  S.data=S.origData.map(r=>({...r}));
+  debounceSave(); renderAll();
+}
+window.loadReport=loadReport;
+window.delReport=delReport;
+
+function sortBy(col){
+  if(S.sortCol===col) S.sortDir=S.sortDir==='asc'?'desc':'asc';
+  else{S.sortCol=col;S.sortDir='desc';}
+  renderTable();
+}
+window.sortBy=sortBy;
+
+// ═══════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════
+function showEmpty(){
+  document.getElementById('view-empty').classList.remove('hidden');
+  document.getElementById('view-dash').classList.add('hidden');
+  renderSaved();
+}
+
+function showDash(){
+  document.getElementById('view-empty').classList.add('hidden');
+  document.getElementById('view-dash').classList.remove('hidden');
+  document.getElementById('meta-month').value=S.month;
+  document.getElementById('meta-client').value=S.client;
+  document.getElementById('meta-file').textContent=S.file;
+  document.getElementById('margin-slider').value=S.margin;
+  document.getElementById('tbl-search').value=S.search;
+  document.getElementById('tbl-active-only').checked=S.onlyActive;
+  debounceSave();
+  renderAll();
+}
+
+function renderAll(){renderKPI();renderCharts();renderTable();renderTopbar();renderInvoice();}
+
+function renderKPI(){
+  const st=stats(); if(!st) return;
+  document.getElementById('kpi-rev').textContent=fmtEur2(st.totalRev);
+  document.getElementById('kpi-rev-hint').textContent=st.earning+' zarábajúcich produktov';
+  document.getElementById('kpi-rents').textContent=fmtN(st.totalCnt);
+  document.getElementById('kpi-rents-hint').textContent='Ø '+fmtEur2(st.avgPerRent)+' / prenájom';
+  document.getElementById('kpi-active').textContent=st.rented+' / '+st.total;
+  document.getElementById('kpi-active-hint').textContent=st.idle+' bez prenájmu v mesiaci';
+  document.getElementById('kpi-margin').textContent=fmtEur2(st.margin);
+  document.getElementById('margin-pct-label').textContent=S.margin;
+  document.getElementById('margin-from').textContent=fmtEur2(st.totalRev);
+}
+
+function renderInvoice(){
+  const st=stats(); if(!st) return;
+  document.getElementById('inv-total').textContent=fmtEur2(st.totalRev);
+  document.getElementById('inv-pct').textContent=S.margin+'%';
+  document.getElementById('inv-amount').textContent=fmtEur2(st.margin);
+}
+
+function renderTopbar(){
+  const st=stats(); if(!st) return;
+  const rBtn=document.getElementById('btn-revert');
+  if(st.edited>0){rBtn.classList.remove('hidden');document.getElementById('edited-count').textContent=st.edited;}
+  else rBtn.classList.add('hidden');
+  const sBtn=document.getElementById('btn-reports');
+  if(savedList.length>1){sBtn.classList.remove('hidden');document.getElementById('reports-count-chip').textContent=savedList.length;}
+  else sBtn.classList.add('hidden');
+  document.getElementById('footer-status').textContent=(st.edited>0?st.edited+' EDITOVANÝCH · ':'')+'AUTO-SAVE AKTÍVNY';
+}
+
+function renderCharts(){
+  if(!S.data) return;
+  const topRev=[...S.data].filter(r=>r.rev>0).sort((a,b)=>b.rev-a.rev).slice(0,12);
+  const topCnt=[...S.data].filter(r=>r.cnt>0).sort((a,b)=>b.cnt-a.cnt).slice(0,12);
+
+  const trunc=(s,n=26)=>s.length>n?s.slice(0,n-1)+'…':s;
+  const palette=['#E8622A','#D4561E','#C04A14','#FF7A45','#FF9060','#FFB085','#F5C842','#3DD68C','#5B8DEF','#A78BFA','#F472B6','#64B5F6'];
+
+  // chart 1 — horizontal bar
+  const ctx1=document.getElementById('chart-rev').getContext('2d');
+  if(charts.rev) charts.rev.destroy();
+  charts.rev=new Chart(ctx1,{
+    type:'bar',
+    data:{
+      labels:topRev.map(r=>trunc(r.name)),
+      datasets:[{
+        data:topRev.map(r=>r.rev),
+        backgroundColor:palette,
+        borderRadius:5,borderSkipped:false,
+      }]
+    },
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>fmtEur2(c.parsed.x)},
+          backgroundColor:'#1E2029',borderColor:'#2A2D3A',borderWidth:1,
+          titleColor:'#F0F1F5',bodyColor:'#9395A5',padding:10,
+        }
+      },
+      scales:{
+        x:{ticks:{color:'#5C5F72',font:{size:10},callback:v=>v+'€'},grid:{color:'#2A2D3A'},border:{display:false}},
+        y:{ticks:{color:'#9395A5',font:{size:10,family:'Plus Jakarta Sans'}},grid:{display:false},border:{display:false}}
+      }
+    }
+  });
+
+  // chart 2 — combo
+  const ctx2=document.getElementById('chart-cnt').getContext('2d');
+  if(charts.cnt) charts.cnt.destroy();
+  charts.cnt=new Chart(ctx2,{
+    type:'bar',
+    data:{
+      labels:topCnt.map(r=>trunc(r.name,18)),
+      datasets:[
+        {label:'Prenájmov',data:topCnt.map(r=>r.cnt),backgroundColor:'#5B8DEF',borderRadius:5,yAxisID:'y'},
+        {label:'Tržby',data:topCnt.map(r=>r.rev),type:'line',borderColor:'#E8622A',backgroundColor:'rgba(232,98,42,0.1)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#E8622A',fill:true,tension:0.3,yAxisID:'y1'}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true,position:'top',labels:{color:'#9395A5',font:{size:11},boxWidth:12}},
+        tooltip:{
+          backgroundColor:'#1E2029',borderColor:'#2A2D3A',borderWidth:1,
+          titleColor:'#F0F1F5',bodyColor:'#9395A5',padding:10,
+          callbacks:{label:c=>c.dataset.label==='Tržby'?c.dataset.label+': '+fmtEur2(c.parsed.y):c.dataset.label+': '+c.parsed.y}
+        }
+      },
+      scales:{
+        x:{ticks:{color:'#5C5F72',font:{size:9},maxRotation:45},grid:{color:'#2A2D3A'},border:{display:false}},
+        y:{type:'linear',position:'left',ticks:{color:'#5C5F72',font:{size:10}},grid:{color:'#2A2D3A'},border:{display:false}},
+        y1:{type:'linear',position:'right',ticks:{color:'#E8622A',font:{size:10,family:'JetBrains Mono'},callback:v=>v+'€'},grid:{display:false},border:{display:false}}
+      }
+    }
+  });
+}
+
+function renderTable(){
+  const rows=filtered();
+  const cols=[
+    {col:'name',label:'Produkt',right:false},
+    {col:'qty',label:'Kusov',right:true},
+    {col:'cnt',label:'Prenájmov',right:true},
+    {col:'rentD',label:'Dni',right:true},
+    {col:'rev',label:'Tržby',right:true},
+    {col:'util',label:'Util.',right:true},
+  ];
+
+  document.getElementById('tbl-head').innerHTML=
+    cols.map(c=>{
+      const a=S.sortCol===c.col;
+      return`<th class="${c.right?'right':''}" onclick="sortBy('${c.col}')">${c.label} <span style="opacity:${a?1:.3}">${a?(S.sortDir==='asc'?'↑':'↓'):'⇅'}</span></th>`;
+    }).join('')+'<th style="width:54px"></th>';
+
+  const vis=rows.slice(0,300);
+  document.getElementById('tbl-body').innerHTML=vis.map(r=>{
+    const ie=(col)=>S.editCell?.id===r.id&&S.editCell?.col===col;
+    const cell=(col,disp,opts={})=>{
+      if(ie(col)){
+        return`<input class="cell-input${opts.right?' right':''}" value="${esc(r[col])}" data-id="${r.id}" data-col="${col}" ${opts.type?'type="'+opts.type+'"':''} ${opts.step?'step="'+opts.step+'"':''}>`;
+      }
+      return`<span class="editable-cell" onclick="startEdit('${r.id}','${col}')">${disp}</span>`;
+    };
+
+    const utilCol=r.util>50?'var(--accent)':r.util>20?'var(--yellow)':'var(--border2)';
+    const editBadge=r.edited?`<span class="badge badge-edit" style="margin-left:6px">EDIT</span>`:'';
+    const newBadge=r.isNew?`<span class="badge badge-new" style="margin-left:6px">NEW</span>`:'';
+
+    return`<tr class="${r.edited?'edited':''}">
+      <td><div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-weight:500">${cell('name',esc(r.name))}${editBadge}${newBadge}</div></td>
+      <td class="num" style="text-align:right">${cell('qty',r.qty,{right:true,type:'number'})}</td>
+      <td class="num" style="text-align:right;font-weight:600">${cell('cnt',r.cnt,{right:true,type:'number'})}</td>
+      <td class="num" style="text-align:right;color:var(--text2)">${cell('rentD',r.rentD,{right:true,type:'number',step:'0.1'})}</td>
+      <td class="num" style="text-align:right;font-weight:700;color:${r.rev>0?'var(--text)':'var(--text3)'}">
+        ${ie('rev')?`<input class="cell-input right" type="number" step="0.01" value="${r.rev}" data-id="${r.id}" data-col="rev">`:
+        `<span class="editable-cell" onclick="startEdit('${r.id}','rev')">${r.rev>0?fmtEur2(r.rev):'—'}</span>`}
+      </td>
+      <td class="num" style="text-align:right">
+        <div class="util-bar-wrap">
+          <div class="util-bar-bg"><div class="util-bar-fill" style="width:${Math.min(100,r.util)}%;background:${utilCol}"></div></div>
+          <span style="min-width:34px;text-align:right;font-size:11px;color:var(--text2)">${r.util}%</span>
+        </div>
+      </td>
+      <td>
+        <div style="display:flex;gap:2px;justify-content:flex-end">
+          ${r.edited&&!r.isNew?`<button class="icon-btn" onclick="resetRow('${r.id}')" title="Vrátiť">↺</button>`:''}
+          <button class="icon-btn" onclick="if(confirm('Odstrániť?'))delRow('${r.id}')" title="Zmazať" style="color:var(--text3)">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // wire inputs
+  document.querySelectorAll('.cell-input').forEach(inp=>{
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Enter') doEdit(inp);
+      if(e.key==='Escape') cancelEdit();
+    });
+    inp.addEventListener('blur',()=>doEdit(inp));
+    setTimeout(()=>{if(inp.closest('tr')){inp.focus();inp.select();}},20);
+  });
+
+  // totals
+  const totQty=rows.reduce((s,r)=>s+r.qty,0);
+  const totCnt=rows.reduce((s,r)=>s+r.cnt,0);
+  const totD=rows.reduce((s,r)=>s+r.rentD,0);
+  const totRev=rows.reduce((s,r)=>s+r.rev,0);
+  document.getElementById('tbl-foot').innerHTML=
+    `<td style="padding:12px 14px;font-weight:700;font-size:13px">SPOLU</td>
+     <td class="num" style="text-align:right;padding:12px 14px">${totQty}</td>
+     <td class="num" style="text-align:right;padding:12px 14px;font-weight:700">${totCnt}</td>
+     <td class="num" style="text-align:right;padding:12px 14px;color:var(--text2)">${totD.toFixed(1)}</td>
+     <td class="num" style="text-align:right;padding:12px 14px;font-weight:800;color:var(--accent);font-size:14px">${fmtEur2(totRev)}</td>
+     <td></td><td></td>`;
+
+  document.getElementById('tbl-count').textContent=rows.length+' / '+S.data.length;
+  document.getElementById('tbl-overflow').classList.toggle('hidden',rows.length<=300);
+}
+
+function renderSaved(){
+  const n=savedList.length;
+  document.getElementById('saved-section').classList.toggle('hidden',n===0);
+  document.getElementById('saved-count').textContent=n;
+
+  const html=savedList.map(r=>{
+    const d=new Date(r.at);
+    const ds=d.toLocaleDateString('sk-SK')+' '+d.toLocaleTimeString('sk-SK',{hour:'2-digit',minute:'2-digit'});
+    return`<div class="saved-card" onclick="loadReport('${r.id}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">
+          ${esc(r.client)||'Bez klienta'} · <span style="color:var(--text2);font-weight:500">${esc(r.month)||'—'}</span>
+        </div>
+        <div class="mono" style="font-size:10px;color:var(--text3);display:flex;gap:10px;flex-wrap:wrap">
+          <span>${r.count} položiek</span>
+          ${r.edited>0?`<span style="color:var(--accent)">${r.edited} edit</span>`:''}
+          <span>· ${ds}</span>
+        </div>
+      </div>
+      <button class="icon-btn btn-danger" onclick="delReport('${r.id}',event)" title="Zmazať" style="color:#ff6b6b">🗑</button>
+    </div>`;
+  }).join('');
+
+  document.getElementById('saved-cards').innerHTML=html;
+  document.getElementById('modal-cards').innerHTML=html;
+}
+
+function flashToast(){
+  const t=document.getElementById('save-toast');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1400);
+}
+
+function showErr(msg){
+  ['error-empty','error-dash'].forEach(id=>{
+    const el=document.getElementById(id);
+    const view=document.getElementById(id==='error-empty'?'view-empty':'view-dash');
+    if(!view.classList.contains('hidden')){
+      el.classList.remove('hidden');
+      document.getElementById(id==='error-empty'?'error-msg-empty':'error-msg-dash').textContent=msg;
+    }
+  });
+}
+function hideErr(){
+  document.getElementById('error-empty').classList.add('hidden');
+  document.getElementById('error-dash').classList.add('hidden');
+}
+
+function hideModal(){document.getElementById('modal').classList.add('hidden');}
+
+// ═══════════════════════════════════════
+// PDF EXPORT
+// ═══════════════════════════════════════
+function exportPDF(){
+  const st=stats();
+  if(!S.data||!st){showErr('Žiadne dáta na export.');return;}
+  hideErr();
+  const btn=document.getElementById('btn-pdf');
+  const txt=document.getElementById('btn-pdf-text');
+  btn.disabled=true; txt.textContent='Generujem…';
+
+  // Small delay so UI updates
+  setTimeout(()=>{
+    try{
+      const{jsPDF}=window.jspdf;
+      const doc=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+      const W=doc.internal.pageSize.getWidth();   // 210
+      const H=doc.internal.pageSize.getHeight();  // 297
+
+      // ── helpers ──
+      const rgb=(hex)=>{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return[r,g,b];};
+      const INK=[13,13,15], SURFACE=[22,24,31], ACCENT=[232,98,42], MUTE=[120,115,120], LIGHT=[248,246,240];
+      const setFill=(...c)=>doc.setFillColor(c[0][0]??c[0],c[0][1]??c[1],c[0][2]??c[2]);
+      const setTxt=(...c)=>doc.setTextColor(c[0][0]??c[0],c[0][1]??c[1],c[0][2]??c[2]);
+      const setDraw=(...c)=>doc.setDrawColor(c[0][0]??c[0],c[0][1]??c[1],c[0][2]??c[2]);
+
+      // ══════════════════════════════════
+      // PAGE 1 — COVER
+      // ══════════════════════════════════
+      // Full dark background
+      doc.setFillColor(INK[0],INK[1],INK[2]);
+      doc.rect(0,0,W,H,'F');
+
+      // Accent stripe top
+      doc.setFillColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+      doc.rect(0,0,W,4,'F');
+
+      // Brand block
+      doc.setFillColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+      doc.roundedRect(18,16,28,28,4,4,'F');
+      doc.setTextColor(255,255,255);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(7);
+      doc.text('FS',27,33);
+
+      doc.setTextColor(255,255,255);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10);
+      doc.text('FILMSUPPORT',52,26);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(MUTE[0],MUTE[1],MUTE[2]);
+      doc.text('RENTAL PERFORMANCE REPORT',52,33);
+
+      // Big title
+      doc.setTextColor(255,255,255);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(38);
+      doc.text('Rental',18,75);
+      doc.text('Performance',18,92);
+      doc.setFont('helvetica','bolditalic');
+      doc.setTextColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+      doc.text('Report.',18,109);
+
+      // Thin divider
+      doc.setDrawColor(40,42,52);
+      doc.setLineWidth(0.3);
+      doc.line(18,120,W-18,120);
+
+      // Meta row
+      let y=133;
+      [['OBDOBIE',S.month||'—'],['KLIENT',S.client||'—'],['DATUM',new Date().toLocaleDateString('sk-SK')]].forEach((item,i)=>{
+        const x=18+i*62;
+        doc.setTextColor(MUTE[0],MUTE[1],MUTE[2]);
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(7);
+        doc.text(item[0],x,y);
+        doc.setTextColor(255,255,255);
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(12);
+        doc.text(item[1].slice(0,18),x,y+8);
+      });
+
+      // Big KPI box
+      y=158;
+      doc.setFillColor(22,24,31);
+      doc.roundedRect(18,y,W-36,52,6,6,'F');
+      doc.setDrawColor(40,42,52);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(18,y,W-36,52,6,6,'S');
+
+      doc.setTextColor(MUTE[0],MUTE[1],MUTE[2]);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7.5);
+      doc.text('CELKOVE TRZBY',26,y+12);
+      doc.setTextColor(255,255,255);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(28);
+      doc.text(pdfEur(st.totalRev),26,y+32);
+      doc.setTextColor(MUTE[0],MUTE[1],MUTE[2]);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8);
+      doc.text('MARZA '+S.margin+'%',26,y+44);
+      doc.setTextColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(14);
+      doc.text(pdfEur(st.margin),70,y+44);
+
+      // Right mini KPIs
+      const rx=W-76;
+      [[fmtN(st.totalCnt),'PRENAJMOV'],[`${st.rented}/${st.total}`,'PRODUKTOV'],[pdfEur(st.avgPerRent),'PRIEMER/PRENAJOM']].forEach((item,i)=>{
+        const yy=y+10+i*17;
+        doc.setTextColor(MUTE[0],MUTE[1],MUTE[2]);
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(7);
+        doc.text(item[1],rx,yy);
+        doc.setTextColor(255,255,255);
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(11);
+        doc.text(String(item[0]).slice(0,18),rx,yy+7);
+      });
+
+      // Invoice box
+      y=222;
+      doc.setFillColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+      doc.roundedRect(18,y,W-36,36,6,6,'F');
+      doc.setTextColor(255,255,255);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8);
+      doc.text('SUMA NA FAKTURACIU',26,y+11);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(22);
+      doc.text(pdfEur(st.margin),26,y+26);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(9);
+      doc.setTextColor(255,200,180);
+      doc.text(S.margin+'% z '+pdfEur(st.totalRev),W-20,y+26,{align:'right'});
+
+      // Footer cover
+      doc.setTextColor(MUTE[0],MUTE[1],MUTE[2]);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7);
+      doc.text('FILMSUPPORT · RENTAL PERFORMANCE REPORT',18,H-10);
+      doc.text('01',W-18,H-10,{align:'right'});
+
+      // ══════════════════════════════════
+      // PAGE 2 — CHART + TABLE
+      // ══════════════════════════════════
+      doc.addPage();
+      doc.setFillColor(INK[0],INK[1],INK[2]);
+      doc.rect(0,0,W,H,'F');
+      doc.setFillColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+      doc.rect(0,0,W,4,'F');
+
+      // Header
+      doc.setFillColor(22,24,31);
+      doc.rect(0,4,W,14,'F');
+      doc.setTextColor(255,255,255);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(8);
+      doc.text('FILMSUPPORT  ·  RENTAL PERFORMANCE REPORT',18,13);
+      doc.setTextColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+      doc.text((S.month||'—').toUpperCase(),W-18,13,{align:'right'});
+
+      y=26;
+      doc.setTextColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(8);
+      doc.text('§ 01',18,y);
+      doc.setTextColor(255,255,255);
+      doc.setFontSize(16);
+      doc.text('Top produkty podla trzieb',30,y);
+
+      // Bar chart
+      y=34;
+      const top10=[...S.data].filter(r=>r.rev>0).sort((a,b)=>b.rev-a.rev).slice(0,10);
+      if(top10.length){
+        const maxR=Math.max(...top10.map(r=>r.rev));
+        const barW=80, barH=7.5, gap=3.5;
+        const colors=['#E8622A','#D4561E','#C04A14','#FF7A45','#FF9060','#FFB085','#F5C842','#3DD68C','#5B8DEF','#A78BFA'];
+        top10.forEach((row,i)=>{
+          const yy=y+i*(barH+gap);
+          const bw=(row.rev/maxR)*barW;
+          doc.setTextColor(180,180,190);
+          doc.setFont('helvetica','normal');
+          doc.setFontSize(7.5);
+          const nm=row.name.length>36?row.name.slice(0,34)+'...':row.name;
+          doc.text(nm,18,yy+5.5);
+          const c=rgb(colors[i%colors.length]);
+          doc.setFillColor(c[0],c[1],c[2]);
+          doc.roundedRect(92,yy,bw,barH,1.5,1.5,'F');
+          doc.setTextColor(255,255,255);
+          doc.setFont('helvetica','bold');
+          doc.setFontSize(7.5);
+          doc.text(pdfEur(row.rev),92+bw+2,yy+5.5);
+        });
+        y=y+top10.length*(barH+gap)+8;
+      }
+
+      // Table section
+      doc.setTextColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(8);
+      doc.text('§ 02',18,y+6);
+      doc.setTextColor(255,255,255);
+      doc.setFontSize(16);
+      doc.text('Detail prenajmov',30,y+6);
+      y+=14;
+
+      const tData=[...S.data]
+        .filter(r=>r.rev>0||r.cnt>0)
+        .sort((a,b)=>b.rev-a.rev)
+        .map(r=>[
+          r.name.length>44?r.name.slice(0,42)+'...':r.name,
+          String(r.qty), String(r.cnt), String(r.rentD), pdfEur(r.rev)
+        ]);
+
+      // A4 usable width = 210 - 14 - 14 = 182mm
+      // cols: 14+14+18+26 = 72 fixed → Produkt gets 182-72 = 110 auto
+      doc.autoTable({
+        startY:y,
+        head:[['Produkt','Ks','Prenájmov','Dni','Tržby']],
+        body:tData,
+        theme:'plain',
+        styles:{font:'helvetica',textColor:[180,182,196],fontSize:7.5,cellPadding:2.8},
+        headStyles:{fillColor:SURFACE,textColor:[255,255,255],fontSize:7,fontStyle:'bold',cellPadding:3},
+        alternateRowStyles:{fillColor:[18,20,26]},
+        columnStyles:{
+          0:{cellWidth:'auto'},
+          1:{halign:'right',cellWidth:14},
+          2:{halign:'right',cellWidth:20},
+          3:{halign:'right',cellWidth:14},
+          4:{halign:'right',cellWidth:26,fontStyle:'bold',textColor:[232,98,42]},
+        },
+        tableWidth:'auto',
+        margin:{left:14,right:14},
+        tableLineColor:[40,42,52],tableLineWidth:0.2,
+        didDrawPage(d){
+          doc.setFillColor(INK[0],INK[1],INK[2]);
+          doc.rect(0,0,W,H,'F');
+          doc.setFillColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+          doc.rect(0,0,W,4,'F');
+          doc.setFillColor(22,24,31);
+          doc.rect(0,4,W,14,'F');
+          doc.setTextColor(255,255,255);
+          doc.setFont('helvetica','bold');
+          doc.setFontSize(8);
+          doc.text('FILMSUPPORT  ·  RENTAL PERFORMANCE REPORT',18,13);
+          doc.setTextColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+          doc.text((S.month||'—').toUpperCase(),W-18,13,{align:'right'});
+          doc.setTextColor(MUTE[0],MUTE[1],MUTE[2]);
+          doc.setFont('helvetica','normal');
+          doc.setFontSize(7);
+          doc.text('STRANA '+d.pageNumber,W-18,H-10,{align:'right'});
+          doc.text('FILMSUPPORT · RENTAL PERFORMANCE REPORT · '+(S.month||''),18,H-10);
+        }
+      });
+
+      // ── Summary box on last page ──
+      const fy=doc.lastAutoTable.finalY||y;
+      let sy=fy+14;
+      if(sy>H-80){doc.addPage();sy=24;}
+
+      doc.setFillColor(22,24,31);
+      doc.roundedRect(14,sy,W-28,44,6,6,'F');
+      doc.setDrawColor(40,42,52);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(14,sy,W-28,44,6,6,'S');
+
+      doc.setTextColor(MUTE[0],MUTE[1],MUTE[2]);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7.5);
+      doc.text('SUHRN OBDOBIA',22,sy+10);
+      const sumRows=[['Celkove trzby',pdfEur(st.totalRev)],['Marza ('+S.margin+'%)',pdfEur(st.margin)],['Pocet prenajmov',fmtN(st.totalCnt)]];
+      sumRows.forEach((item,i)=>{
+        const yy=sy+19+i*9;
+        doc.setTextColor(180,182,196);
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(8.5);
+        doc.text(item[0],22,yy);
+        doc.text(item[1],W-22,yy,{align:'right'});
+      });
+
+      sy+=52;
+      doc.setFillColor(ACCENT[0],ACCENT[1],ACCENT[2]);
+      doc.roundedRect(14,sy,W-28,22,5,5,'F');
+      doc.setTextColor(255,255,255);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7.5);
+      doc.text('NA FAKTURACIU',22,sy+8);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(16);
+      doc.text(pdfEur(st.margin),22,sy+18);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(255,200,180);
+      doc.text(S.margin+'% PODIEL',W-22,sy+18,{align:'right'});
+
+      // footer last page
+      const tp=doc.internal.getNumberOfPages();
+      doc.setTextColor(MUTE[0],MUTE[1],MUTE[2]);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7);
+      doc.text('FILMSUPPORT · RENTAL PERFORMANCE REPORT · '+(S.month||''),18,H-10);
+      doc.text('STRANA '+tp+' / '+tp,W-18,H-10,{align:'right'});
+
+      // fix page 1 footer
+      doc.setPage(1);
+      doc.setTextColor(MUTE[0],MUTE[1],MUTE[2]);
+      doc.setFontSize(7);
+      doc.text('01 / '+tp,W-18,H-10,{align:'right'});
+
+      const fn='Filmsupport_Report_'+
+        (S.client||'klient').replace(/[^a-zA-Z0-9_-]/g,'_')+'_'+
+        (S.month||'report').replace(/\s+/g,'_')+'.pdf';
+      doc.save(fn);
+
+    }catch(e){
+      showErr('PDF export zlyhal: '+e.message);
+      console.error(e);
+    }finally{
+      btn.disabled=false;
+      txt.textContent='Export PDF';
+    }
+  },80);
+}
+
+// ═══════════════════════════════════════
+// EVENTS
+// ═══════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  // upload zone — input je absolútne pozicionovaný cez celú zónu (opacity:0)
+  const zone=document.getElementById('upload-zone');
+  const inp=document.getElementById('file-input');
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag');});
+  zone.addEventListener('dragleave',e=>{if(!zone.contains(e.relatedTarget))zone.classList.remove('drag');});
+  zone.addEventListener('drop',e=>{
+    e.preventDefault();zone.classList.remove('drag');
+    const f=e.dataTransfer.files[0];
+    if(f) handleFile(f);
+  });
+  inp.addEventListener('change',e=>{
+    const f=e.target.files[0];
+    if(f){ handleFile(f); inp.value=''; }
+  });
+
+  // meta inputs
+  document.getElementById('meta-month').addEventListener('input',e=>{S.month=e.target.value;debounceSave();});
+  document.getElementById('meta-client').addEventListener('input',e=>{S.client=e.target.value;debounceSave();});
+
+  // slider
+  document.getElementById('margin-slider').addEventListener('input',e=>{
+    S.margin=parseInt(e.target.value);
+    document.getElementById('margin-pct-label').textContent=S.margin;
+    debounceSave();renderKPI();renderInvoice();
+  });
+
+  // table controls
+  document.getElementById('tbl-search').addEventListener('input',e=>{S.search=e.target.value;renderTable();});
+  document.getElementById('tbl-active-only').addEventListener('change',e=>{S.onlyActive=e.target.checked;renderTable();});
+  document.getElementById('btn-add').addEventListener('click',addRow);
+
+  // topbar
+  document.getElementById('btn-revert').addEventListener('click',revertAll);
+  document.getElementById('btn-new').addEventListener('click',startNew);
+  document.getElementById('btn-pdf').addEventListener('click',exportPDF);
+  document.getElementById('btn-reports').addEventListener('click',()=>{
+    renderSaved();
+    document.getElementById('modal').classList.remove('hidden');
+  });
+  document.getElementById('modal-close').addEventListener('click',hideModal);
+  document.getElementById('modal').addEventListener('click',e=>{if(e.target===document.getElementById('modal'))hideModal();});
+
+  // init
+  const hasSaved=load();
+  if(hasSaved&&S.data) showDash();
+  else showEmpty();
+});
+</script>
+
+</body>
+</html>
